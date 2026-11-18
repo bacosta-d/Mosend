@@ -106,7 +106,7 @@ jobs:
       - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nsis binutils-mingw-w64-x86-64 python3
+          sudo apt-get install -y --no-install-recommends nsis binutils-mingw-w64-x86-64 python3 python3-pil
 
       - name: Build Windows/Linux binaries and installers
         working-directory: desktop

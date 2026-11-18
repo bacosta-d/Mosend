@@ -84,7 +84,7 @@ class TransferForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_transfer)
+            .setSmallIcon(R.mipmap.ic_notification)
             .setContentTitle("Mosend")
             .setContentText(statusText ?: "正在局域网待命，可接收文件")
             .setContentIntent(contentIntent)
