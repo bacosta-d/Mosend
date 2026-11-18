@@ -1,0 +1,21 @@
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+android/keystore/
+android/keystore.properties
+android/*.apk
+android/.kotlin/
+
+# Desktop
+desktop/dist/
+desktop/*.exe
+desktop/*.syso
+desktop/*.apk
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.iml
+*.log

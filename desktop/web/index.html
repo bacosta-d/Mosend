@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mosend Desktop</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e2230; --line:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa3b2; --primary:#4f8cff; --primary2:#3a6fd8;
+    --green:#2ecc71; --red:#ff5c5c; --bubble-in:#242a36; --bubble-out:#2f5fd0;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+  #app{display:flex;height:100%}
+  /* sidebar */
+  #sidebar{width:300px;min-width:240px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  #brand{padding:16px 16px 12px;border-bottom:1px solid var(--line)}
+  #brand h1{margin:0;font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+  #brand .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+  #brand .sub{margin-top:6px;color:var(--muted);font-size:12px;word-break:break-all}
+  #devices{flex:1;overflow:auto}
+  .device{padding:12px 14px;display:flex;gap:10px;align-items:center;cursor:pointer;border-bottom:1px solid rgba(42,47,58,.5)}
+  .device:hover{background:var(--panel2)}
+  .device.active{background:#232b3d}
+  .avatar{width:38px;height:38px;border-radius:50%;background:#2c3550;color:#9fb8ff;display:flex;align-items:center;justify-content:center;font-weight:600;flex:0 0 auto}
+  .device .meta{flex:1;min-width:0}
+  .device .name{display:flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dot-on{width:7px;height:7px;border-radius:50%;background:var(--green);flex:0 0 auto}
+  .dot-off{width:7px;height:7px;border-radius:50%;background:#5b6472;flex:0 0 auto}
+  .device .last{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .device .time{color:#6d7686;font-size:11px;margin-left:auto}
+  /* main */
+  #main{flex:1;display:flex;flex-direction:column;min-width:0}
+  #topbar{padding:12px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;background:var(--panel)}
+  #topbar .title{font-weight:600}
+  #topbar .status{color:var(--muted);font-size:12px}
+  #topbar .spacer{flex:1}
+  .switch{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;cursor:pointer;user-select:none}
+  .switch input{display:none}
+  .track{width:38px;height:22px;border-radius:12px;background:#3a4150;position:relative;transition:.2s}
+  .track:after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}
+  .switch input:checked + .track{background:var(--primary)}
+  .switch input:checked + .track:after{left:19px}
+  #messages{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:10px}
+  .empty{color:var(--muted);text-align:center;margin-top:20vh;line-height:1.8}
+  .row{display:flex}
+  .row.out{justify-content:flex-end}
+  .bubble{max-width:min(560px,72%);border-radius:14px;padding:9px 12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:var(--bubble-in)}
+  .row.out .bubble{background:var(--bubble-out)}
+  .bubble .meta{font-size:11px;color:rgba(255,255,255,.65);margin-top:5px;display:flex;gap:8px;justify-content:flex-end}
+  .file{display:flex;gap:10px;align-items:center;min-width:220px}
+  .file .ficon{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:18px}
+  .file .fname{font-weight:600;word-break:break-all}
+  .file .fsize{font-size:12px;color:rgba(255,255,255,.7);margin-top:2px}
+  .progress{height:4px;background:rgba(255,255,255,.18);border-radius:2px;margin-top:8px;overflow:hidden}
+  .progress > i{display:block;height:100%;background:#fff;width:0}
+  /* pending */
+  #pending{display:none;margin:12px 22px 0;padding:12px 14px;border:1px solid #6b5320;background:#26200f;border-radius:12px;align-items:center;gap:12px}
+  #pending.show{display:flex}
+  #pending .info{flex:1}
+  #pending .t{font-weight:600}
+  #pending .s{color:var(--muted);font-size:12px;margin-top:3px}
+  button{cursor:pointer;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;color:#fff;background:var(--primary);transition:.15s}
+  button:hover{background:var(--primary2)}
+  button.ghost{background:#2c3240;color:var(--text)}
+  button.ghost:hover{background:#39404f}
+  button.red{background:var(--red)}
+  /* composer */
+  #composer{border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:10px;align-items:flex-end;background:var(--panel)}
+  #composer textarea{flex:1;resize:none;max-height:120px;min-height:42px;border-radius:12px;border:1px solid var(--line);background:#12151c;color:var(--text);padding:11px 12px;outline:none;font-family:inherit;font-size:14px}
+  #composer textarea:focus{border-color:var(--primary)}
+  .attach{width:42px;height:42px;border-radius:12px;background:#2c3240;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:19px}
+  .attach:hover{background:#39404f}
+  input[type=file]{display:none}
+  @media(max-width:760px){#sidebar{width:220px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div id="brand">
+      <h1><span class="dot"></span>Mosend</h1>
+      <div class="sub" id="meInfo">加载中…</div>
+    </div>
+    <div id="devices"></div>
+  </aside>
+  <main id="main">
+    <div id="topbar">
+      <div>
+        <div class="title" id="chatTitle">选择设备</div>
+        <div class="status" id="chatStatus">发现同一 Wi-Fi 下的手机与电脑</div>
+      </div>
+      <div class="spacer"></div>
+      <label class="switch" title="自动接收文件">
+        <input type="checkbox" id="autoAccept"><span class="track"></span>自动接收
+      </label>
+    </div>
+    <div id="pending">
+      <div class="info">
+        <div class="t" id="pendingTitle">收到文件</div>
+        <div class="s" id="pendingSub"></div>
+      </div>
+      <button class="ghost" id="btnReject">拒绝</button>
+      <button id="btnAccept">接收</button>
+    </div>
+    <div id="messages"></div>
+    <div id="composer">
+      <label class="attach" for="fileInput" title="发送文件">＋</label>
+      <input type="file" id="fileInput" multiple>
+      <textarea id="input" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+      <button id="btnSend">发送</button>
+    </div>
+  </main>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+let state = { devices: [], messages: {}, me: {}, pending: [], autoAccept: false };
+let selected = localStorage.getItem('ft.selected') || '';
+let lastMsgCount = -1;
+let pendingShown = '';
+
+function fmtSize(n){
+  if (!n) return '0 B';
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  if (n < 1024*1024*1024) return (n/1024/1024).toFixed(1) + ' MB';
+  return (n/1024/1024/1024).toFixed(1) + ' GB';
+}
+function fmtTime(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const hm = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  if (d.toDateString() === now.toDateString()) return hm;
+  return (d.getMonth()+1)+'-'+String(d.getDate()).padStart(2,'0')+' '+hm;
+}
+function esc(s){ return (s==null?'':String(s)); }
+
+async function fetchState(){
+  try{
+    const r = await fetch('/api/state');
+    if(!r.ok) return;
+    state = await r.json();
+    render();
+  }catch(e){ /* ignore */ }
+}
+
+function render(){
+  // me
+  const me = state.me || {};
+  $('#meInfo').textContent = (me.name||'') + '  ·  ' + (me.id||'');
+  $('#autoAccept').checked = !!state.autoAccept;
+
+  // devices
+  const devices = state.devices || [];
+  if (!selected && devices.length) selected = devices[0].id;
+  if (selected && !devices.find(d=>d.id===selected) && devices.length) selected = devices[0].id;
+
+  const list = $('#devices');
+  list.innerHTML = '';
+  if (!devices.length){
+    const d = document.createElement('div');
+    d.className='device';
+    d.innerHTML = '<div class="meta"><div class="name">未发现设备</div><div class="last">确保手机端已打开应用并连接同一 Wi-Fi</div></div>';
+    list.appendChild(d);
+  }
+  devices.forEach(d=>{
+    const el = document.createElement('div');
+    el.className = 'device' + (d.id===selected?' active':'');
+    el.onclick = ()=>{ selected = d.id; localStorage.setItem('ft.selected', selected); lastMsgCount=-1; render(); };
+    el.innerHTML = '';
+    const av = document.createElement('div'); av.className='avatar'; av.textContent=(d.name||'?').trim().charAt(0).toUpperCase();
+    const meta = document.createElement('div'); meta.className='meta';
+    const name = document.createElement('div'); name.className='name';
+    const dot = document.createElement('span'); dot.className = d.online?'dot-on':'dot-off';
+    name.appendChild(dot);
+    const nt = document.createElement('span'); nt.textContent = d.name||d.id; name.appendChild(nt);
+    const last = document.createElement('div'); last.className='last';
+    last.textContent = (d.queued? '['+d.queued+' 条待发送] ' : '') + (d.lastText || (d.online?'点击开始对话':'离线'));
+    meta.appendChild(name); meta.appendChild(last);
+    el.appendChild(av); el.appendChild(meta);
+    if (d.lastTs){
+      const t = document.createElement('div'); t.className='time'; t.textContent=fmtTime(d.lastTs); el.appendChild(t);
+    }
+    list.appendChild(el);
+  });
+
+  // header
+  const cur = devices.find(d=>d.id===selected);
+  $('#chatTitle').textContent = cur ? cur.name : '选择设备';
+  $('#chatStatus').textContent = cur ? (cur.online ? ('在线 · '+cur.address) : '离线 · 消息将自动排队') : '发现同一 Wi-Fi 下的手机与电脑';
+  $('#input').disabled = !cur;
+  $('#btnSend').disabled = !cur;
+  $('#fileInput').disabled = !cur;
+  $('#input').placeholder = cur && !cur.online ? '输入消息（对方离线，将排队发送）' : '输入消息，Enter 发送，Shift+Enter 换行';
+
+  // messages
+  const msgs = (state.messages && state.messages[selected]) || [];
+  const box = $('#messages');
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+  box.innerHTML = '';
+  if (!msgs.length){
+    const e = document.createElement('div'); e.className='empty';
+    e.innerHTML = '开始对话吧<br><span style="font-size:12px">文本和文件都会以消息形式发送</span>';
+    box.appendChild(e);
+  } else {
+    msgs.forEach(m=>{
+      const row = document.createElement('div'); row.className='row '+(m.dir==='out'?'out':'in');
+      const b = document.createElement('div'); b.className='bubble';
+      if (m.kind === 'text'){
+        const t = document.createElement('div'); t.textContent=m.text||''; b.appendChild(t);
+      } else {
+        const f = document.createElement('div'); f.className='file';
+        const ic = document.createElement('div'); ic.className='ficon'; ic.textContent='📄';
+        const info = document.createElement('div');
+        const fn = document.createElement('div'); fn.className='fname'; fn.textContent=m.fileName||'文件';
+        const fsState = m.status==='failed'?'失败':(m.status==='queued'?'待发送':(m.status==='sending'?'传输中':(m.localPath?'已保存':'已发送')));
+        const fs = document.createElement('div'); fs.className='fsize'; fs.textContent=fmtSize(m.fileSize)+' · '+fsState;
+        info.appendChild(fn); info.appendChild(fs);
+        f.appendChild(ic); f.appendChild(info); b.appendChild(f);
+        if (m.status==='sending' || (m.status==='pending')){
+          const pr = document.createElement('div'); pr.className='progress';
+          const i = document.createElement('i'); i.style.width=(m.progress||0)+'%'; pr.appendChild(i); b.appendChild(pr);
+        }
+      }
+      const meta = document.createElement('div'); meta.className='meta';
+      const t = document.createElement('span'); t.textContent=fmtTime(m.ts); meta.appendChild(t);
+      if (m.dir==='out'){
+        const st = document.createElement('span');
+        st.textContent = m.status==='failed'?'失败':(m.status==='sent'?'已发送':(m.status==='queued'?'排队中':(m.status==='sending'?'发送中':'已发送')));
+        meta.appendChild(st);
+      }
+      b.appendChild(meta);
+      row.appendChild(b); box.appendChild(row);
+    });
+    if (lastMsgCount !== msgs.length || atBottom) box.scrollTop = box.scrollHeight;
+    lastMsgCount = msgs.length;
+  }
+
+  // pending
+  const p = (state.pending||[])[0];
+  if (p){
+    $('#pending').classList.add('show');
+    $('#pendingTitle').textContent = '收到文件';
+    $('#pendingSub').textContent = (p.deviceName||'') + ' 想发送「' + (p.fileName||'') + '」(' + fmtSize(p.fileSize) + ')';
+    pendingShown = p.transferId;
+  } else {
+    $('#pending').classList.remove('show');
+    pendingShown = '';
+  }
+}
+
+function curDevice(){
+  return (state.devices||[]).find(d=>d.id===selected) || null;
+}
+
+async function sendText(){
+  const ta = $('#input');
+  const text = ta.value.trim();
+  if (!text) return;
+  const dev = curDevice(); if(!dev || !dev.online) return;
+  ta.value = '';
+  await fetch('/api/send_text', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({deviceId: dev.id, text})});
+  lastMsgCount = -1; fetchState();
+}
+
+async function sendFiles(files){
+  const dev = curDevice(); if(!dev || !dev.online || !files.length) return;
+  const fd = new FormData();
+  fd.append('deviceId', dev.id);
+  for (const f of files) fd.append('files', f, f.name);
+  await fetch('/api/upload', {method:'POST', body: fd});
+  lastMsgCount = -1; fetchState();
+}
+
+async function answerPending(accept){
+  if(!pendingShown) return;
+  await fetch('/api/accept', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({transferId: pendingShown, accept})});
+  fetchState();
+}
+
+$('#btnSend').onclick = sendText;
+$('#input').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendText(); }
+});
+$('#fileInput').addEventListener('change', e=>{
+  sendFiles(Array.from(e.target.files||[]));
+  e.target.value='';
+});
+$('#btnAccept').onclick = ()=>answerPending(true);
+$('#btnReject').onclick = ()=>answerPending(false);
+$('#autoAccept').addEventListener('change', async e=>{
+  await fetch('/api/autoaccept', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({value: e.target.checked})});
+});
+
+fetchState();
+setInterval(fetchState, 1000);
+</script>
+</body>
+</html>

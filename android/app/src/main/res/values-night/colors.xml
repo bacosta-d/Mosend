@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors (Dark) -->
+    <color name="primary">#FFB3A1</color>
+    <color name="primary_variant">#FF8F6D</color>
+    <color name="on_primary">#3D1B12</color>
+    <color name="primary_container">#5B2D21</color>
+    <color name="on_primary_container">#FFDAD1</color>
+
+    <!-- Secondary Colors (Dark) -->
+    <color name="secondary">#A0DFFD</color>
+    <color name="secondary_variant">#7CCDD1</color>
+    <color name="on_secondary">#001F24</color>
+    <color name="secondary_container">#00353D</color>
+    <color name="on_secondary_container">#D6F4FF</color>
+
+    <!-- Tertiary Colors (Dark) -->
+    <color name="tertiary">#D6BBFC</color>
+    <color name="tertiary_variant">#BC99DF</color>
+    <color name="on_tertiary">#2D1349</color>
+    <color name="tertiary_container">#442C5E</color>
+    <color name="on_tertiary_container">#F0DAFF</color>
+
+    <!-- Error Colors (Dark) -->
+    <color name="error">#FFB4AB</color>
+    <color name="error_container">#93000A</color>
+    <color name="on_error">#690005</color>
+    <color name="on_error_container">#FFDAD6</color>
+
+    <!-- Surface Colors (Dark) -->
+    <color name="surface">#1C1B1F</color>
+    <color name="on_surface">#E6E1E5</color>
+    <color name="surface_variant">#49454F</color>
+    <color name="on_surface_variant">#CAC4D0</color>
+    <color name="outline">#938F99</color>
+    <color name="outline_variant">#49454F</color>
+
+    <!-- Background (Dark) -->
+    <color name="background">#1C1B1F</color>
+    <color name="on_background">#E6E1E5</color>
+
+    <!-- Inverse (Dark) -->
+    <color name="inverse_surface">#E6E1E5</color>
+    <color name="inverse_on_surface">#313033</color>
+    <color name="inverse_primary">#FF6B4E</color>
+
+    <!-- Shadow & Scrim (Dark) -->
+    <color name="shadow">#000000</color>
+    <color name="scrim">#000000</color>
+
+    <!-- Transfer States (Dark) -->
+    <color name="transfer_pending">#FFB74D</color>
+    <color name="transfer_active">#64B5F6</color>
+    <color name="transfer_completed">#81C784</color>
+    <color name="transfer_failed">#E57373</color>
+    <color name="transfer_cancelled">#BDBDBD</color>
+
+    <!-- Device States (Dark) -->
+    <color name="device_online">#A5D6A7</color>
+    <color name="device_offline">#BDBDBD</color>
+    <color name="device_connecting">#90CAF9</color>
+</resources>
