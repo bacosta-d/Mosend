@@ -26,4 +26,29 @@
 
     <!-- Scrim -->
     <color name="scrim">#00000000</color>
+    <color name="primary_container">#5B2D21</color>
+    <color name="on_primary_container">#FFDAD1</color>
+    <color name="secondary_container">#00353D</color>
+    <color name="on_secondary_container">#D6F4FF</color>
+    <color name="tertiary">#D6BBFC</color>
+    <color name="tertiary_variant">#BC99DF</color>
+    <color name="on_tertiary">#2D1349</color>
+    <color name="tertiary_container">#442C5E</color>
+    <color name="on_tertiary_container">#F0DAFF</color>
+    <color name="error_container">#93000A</color>
+    <color name="on_error_container">#FFDAD6</color>
+    <color name="surface_variant">#49454F</color>
+    <color name="on_surface_variant">#CAC4D0</color>
+    <color name="inverse_surface">#E6E1E5</color>
+    <color name="inverse_on_surface">#313033</color>
+    <color name="inverse_primary">#FF6B4E</color>
+    <color name="shadow">#000000</color>
+    <color name="transfer_pending">#FFB74D</color>
+    <color name="transfer_active">#64B5F6</color>
+    <color name="transfer_completed">#81C784</color>
+    <color name="transfer_failed">#E57373</color>
+    <color name="transfer_cancelled">#BDBDBD</color>
+    <color name="device_online">#A5D6A7</color>
+    <color name="device_offline">#BDBDBD</color>
+    <color name="device_connecting">#90CAF9</color>
 </resources>

@@ -66,7 +66,7 @@ func main() {
 		Name:         deviceName,
 		DeviceType:   "DESKTOP",
 		Capabilities: []string{"FILE_TRANSFER", "TEXT_TRANSFER"},
-		Version:      "1.2.0-windows",
+		Version:      "1.2.1-windows",
 	}
 	store := newStore(me, downloadDir, outboxDir, dataPath, *transfer, *discovery)
 	store.Load()

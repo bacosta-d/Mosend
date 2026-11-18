@@ -1,6 +1,17 @@
 # Mosend
 
+[![CI](https://github.com/bacosta-d/Mosend/actions/workflows/ci.yml/badge.svg)](https://github.com/bacosta-d/Mosend/actions/workflows/ci.yml)
+[![Release](https://github.com/bacosta-d/Mosend/actions/workflows/release.yml/badge.svg)](https://github.com/bacosta-d/Mosend/actions/workflows/release.yml)
+
 局域网聊天式文件互传：**Android ↔ Android / Android ↔ Windows**，同一 Wi-Fi 下自动发现、直接传输，无需账号与云端。
+
+## 下载
+
+前往 [Releases](https://github.com/bacosta-d/Mosend/releases/latest) 获取：
+
+- **Android**：`Mosend-android-release.apk`
+- **Windows x64**：`Mosend-Setup-*-amd64.exe`（安装包）或 `Mosend-portable.zip`
+- **Windows ARM64**：`Mosend-Setup-*-arm64.exe`
 
 ## 特性
 
@@ -58,3 +69,7 @@ makensis -DARCH=amd64 -DAPPVERSION=1.2.0 installer.nsi
 
 - 本仓库不包含签名密钥与构建产物。
 - 文本/文件为局域网直传，不经服务器中转。
+
+## 作者
+
+酷安 **@赵信金**　·　仓库：[bacosta-d/Mosend](https://github.com/bacosta-d/Mosend)

@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Prepare signing (optional)
+        working-directory: android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            mkdir -p keystore
+            echo "$KEYSTORE_B64" | base64 -d > keystore/release.jks
+            {
+              echo "storeFile=keystore/release.jks"
+              echo "storePassword=$STORE_PASS"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASS"
+            } > keystore.properties
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+            echo "keystore ready"
+          else
+            echo "no signing secrets; will publish debug APK"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ "${SIGNED:-0}" = "1" ]; then
+            ./gradlew assembleRelease --no-daemon
+            APK=app/build/outputs/apk/release/app-release.apk
+            NAME=Mosend-android-release.apk
+          else
+            ./gradlew assembleDebug --no-daemon
+            APK=app/build/outputs/apk/debug/app-debug.apk
+            NAME=Mosend-android-debug.apk
+          fi
+          mkdir -p ../release-assets
+          cp "$APK" "../release-assets/$NAME"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: release-assets/*.apk
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis gcc-mingw-w64-x86-64 python3
+
+      - name: Build Windows/Linux binaries and installers
+        working-directory: desktop
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          python3 tools/gen_icon.py
+          printf '1 ICON "app.ico"\n' > app.rc
+          x86_64-w64-mingw32-windres --preprocessor=cat app.rc -O coff -o rsrc_windows_amd64.syso
+
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/Mosend-windows-amd64.exe .
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/Mosend-windows-arm64.exe .
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/Mosend-linux-arm64 .
+
+          makensis -DARCH=amd64 -DAPPVERSION="$VERSION" installer.nsi
+          makensis -DARCH=arm64 -DAPPVERSION="$VERSION" installer.nsi
+
+          cp README.md dist/README.md
+          printf '@echo off\r\nchcp 65001 >nul\r\ntitle Mosend\r\nMosend-windows-amd64.exe\r\npause\r\n' > "dist/启动 Mosend.bat"
+          cd dist
+          python3 - <<'PY'
+import zipfile
+files = ["Mosend-windows-amd64.exe", "Mosend-windows-arm64.exe", "启动 Mosend.bat", "README.md"]
+with zipfile.ZipFile("Mosend-portable.zip", "w", zipfile.ZIP_DEFLATED) as z:
+    for f in files:
+        z.write(f, f)
+PY
+
+      - name: Copy release assets
+        run: |
+          mkdir -p release-assets
+          cp desktop/dist/Mosend-Setup-*.exe release-assets/
+          cp desktop/dist/Mosend-portable.zip release-assets/
+          ls -lh release-assets
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: List assets
+        run: ls -lh assets
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: assets/*
+          fail_on_unmatched_files: false

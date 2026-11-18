@@ -9,7 +9,7 @@
 
 ## 安装（推荐）
 
-运行 `Mosend-Setup-1.2.0-amd64.exe`（ARM64 设备用 `-arm64`），按向导完成：
+运行 `Mosend-Setup-1.2.1-amd64.exe`（ARM64 设备用 `-arm64`），按向导完成：
 
 - 默认安装到 `%LOCALAPPDATA%\Mosend`，无需管理员权限
 - 自动创建开始菜单快捷方式；可选创建桌面快捷方式
@@ -70,19 +70,19 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o d
 CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/Mosend-windows-arm64.exe .
 
 # 安装包
-makensis -DARCH=amd64 -DAPPVERSION=1.2.0 installer.nsi
-makensis -DARCH=arm64 -DAPPVERSION=1.2.0 installer.nsi
+makensis -DARCH=amd64 -DAPPVERSION=1.2.1 installer.nsi
+makensis -DARCH=arm64 -DAPPVERSION=1.2.1 installer.nsi
 ```
 
 ## 产物
 
 | 文件 | 说明 |
 |---|---|
-| `dist/Mosend-Setup-1.2.0-amd64.exe` | Windows x64 安装包 |
-| `dist/Mosend-Setup-1.2.0-arm64.exe` | Windows ARM64 安装包 |
+| `dist/Mosend-Setup-1.2.1-amd64.exe` | Windows x64 安装包 |
+| `dist/Mosend-Setup-1.2.1-arm64.exe` | Windows ARM64 安装包 |
 | `dist/Mosend-windows-amd64.exe` | 免安装版 x64 |
 | `dist/Mosend-windows-arm64.exe` | 免安装版 ARM64 |
-| `dist/Mosend-1.2.0-portable.zip` | 免安装打包 |
+| `dist/Mosend-1.2.1-portable.zip` | 免安装打包 |
 | `dist/Mosend-linux-arm64` | Linux 构建（联调验证用） |
 
 ## 联调验证

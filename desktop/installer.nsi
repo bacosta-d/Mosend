@@ -1,11 +1,11 @@
 ; Mosend Windows 安装包（NSIS）
-; 用法: makensis -DARCH=amd64 -DAPPVERSION=1.2.0 installer.nsi
+; 用法: makensis -DARCH=amd64 -DAPPVERSION=1.2.1 installer.nsi
 
 !ifndef ARCH
   !define ARCH "amd64"
 !endif
 !ifndef APPVERSION
-  !define APPVERSION "1.2.0"
+  !define APPVERSION "1.2.1"
 !endif
 
 Unicode true

@@ -151,7 +151,13 @@ fun SettingsScreen(
             item { SectionTitle("关于") }
             item {
                 SettingCard {
-                    SettingRow("版本", "1.0.0")
+                    SettingRow("版本", com.filetransfer.coui.BuildConfig.VERSION_NAME)
+                    SettingRow(
+                        title = "开源仓库",
+                        subtitle = "github.com/bacosta-d/Mosend",
+                        onClick = { openUrl(context, REPO_URL) },
+                    )
+                    SettingRow("作者", "酷安@赵信金")
                     SettingRow("协议", "局域网 UDP 发现 + TCP 直传")
                 }
             }
@@ -178,6 +184,17 @@ fun SettingsScreen(
                 }) { Text("保存") }
             },
             dismissButton = { TextButton(onClick = { showNameDialog = false }) { Text("取消") } },
+        )
+    }
+}
+
+private const val REPO_URL = "https://github.com/bacosta-d/Mosend"
+
+private fun openUrl(context: android.content.Context, url: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
 }
