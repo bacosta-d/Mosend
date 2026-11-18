@@ -72,6 +72,22 @@ class MessageStore private constructor(context: Context) {
     fun unreadCount(deviceId: String): Int =
         _messages.value.count { it.deviceId == deviceId && it.direction == MessageDirection.IN && it.status != com.filetransfer.coui.model.MessageStatus.DELIVERED }
 
+    /** 把旧设备 ID 的会话迁移到新 ID（对方重装/清数据后 ID 变化）。 */
+    fun migrateDevice(fromId: String, toId: String, toName: String) {
+        if (fromId == toId) return
+        _messages.update { list ->
+            list.map {
+                if (it.deviceId == fromId) it.copy(deviceId = toId, deviceName = toName) else it
+            }
+        }
+        persistAsync()
+    }
+
+    fun remove(id: String) {
+        _messages.update { list -> list.filterNot { it.id == id } }
+        persistAsync()
+    }
+
     fun clearConversation(deviceId: String) {
         _messages.update { list -> list.filterNot { it.deviceId == deviceId } }
         persistAsync()

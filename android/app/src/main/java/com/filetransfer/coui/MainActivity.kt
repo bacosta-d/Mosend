@@ -7,11 +7,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.filetransfer.coui.ui.components.PendingTransferHost
 import com.filetransfer.coui.ui.navigation.AppNavHost
 import com.filetransfer.coui.ui.navigation.rememberAppNavController
 import com.filetransfer.coui.ui.theme.FileTransferTheme
@@ -34,7 +36,10 @@ class MainActivity : ComponentActivity() {
                 MaterialTheme {
                     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         val navController = rememberAppNavController()
-                        AppNavHost(navController)
+                        Box(Modifier.fillMaxSize()) {
+                            AppNavHost(navController)
+                            PendingTransferHost()
+                        }
                     }
                 }
             }

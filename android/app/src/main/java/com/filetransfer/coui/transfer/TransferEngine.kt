@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -180,10 +182,14 @@ class TransferEngine private constructor(context: Context) {
         val socket = Socket()
         sessions[item.id] = Session(item.id, socket)
         try {
+            socket.tcpNoDelay = true
+            try { socket.sendBufferSize = 4 * 1024 * 1024 } catch (_: Exception) {}
             store.updateStatus(item.id, TransferStatus.CONNECTING)
             socket.connect(InetSocketAddress(device.address, DiscoveryConfig.FILE_TRANSFER_PORT), TransferConfig.CONNECT_TIMEOUT_MS)
-            val out = DataOutputStream(socket.getOutputStream())
-            val input = DataInputStream(socket.getInputStream())
+            socket.soTimeout = TransferConfig.ACK_TIMEOUT_MS
+            store.updateStatus(item.id, TransferStatus.WAITING_ACCEPT)
+            val out = DataOutputStream(BufferedOutputStream(socket.getOutputStream(), 1024 * 1024))
+            val input = DataInputStream(BufferedInputStream(socket.getInputStream(), 64 * 1024))
 
             send(out, NetworkMessage.TransferRequest(
                 transferId = item.id,
@@ -195,38 +201,67 @@ class TransferEngine private constructor(context: Context) {
             ))
             val ack = read(input)
             if (ack !is NetworkMessage.TransferAck || !ack.accepted) {
-                throw IllegalStateException(ack?.let { (it as? NetworkMessage.TransferAck)?.message } ?: "no ack")
+                throw IllegalStateException((ack as? NetworkMessage.TransferAck)?.message ?: "no ack")
             }
 
+            socket.soTimeout = TransferConfig.TRANSFER_TIMEOUT_MS
             store.updateStatus(item.id, TransferStatus.TRANSFERRING)
             messages.updateByTransferId(item.id) { it.copy(status = MessageStatus.PENDING) }
 
             var sent = 0L
-            val started = System.currentTimeMillis()
+            var lastTime = System.currentTimeMillis()
+            var lastBytes = 0L
+            var ema = 0.0
+
+            fun reportSpeed(now: Long) {
+                val dt = (now - lastTime).coerceAtLeast(1)
+                val inst = (sent - lastBytes) * 1000.0 / dt
+                ema = if (ema <= 0.0) inst else ema * 0.7 + inst * 0.3
+                lastTime = now
+                lastBytes = sent
+                store.updateProgress(item.id, sent.toFloat() / item.fileSize.coerceAtLeast(1), sent, ema.toLong())
+            }
+
             FileInputStream(file).use { fis ->
-                val buffer = ByteArray(TransferConfig.CHUNK_SIZE)
-                while (true) {
-                    val n = fis.read(buffer)
-                    if (n <= 0) break
-                    send(out, NetworkMessage.FileChunk(
-                        transferId = item.id,
-                        offset = sent,
-                        data = Base64.encodeToString(buffer.copyOf(n), Base64.NO_WRAP),
-                        last = false,
-                    ))
-                    sent += n
-                    val elapsed = ((System.currentTimeMillis() - started) / 1000.0).coerceAtLeast(0.001)
-                    store.updateProgress(item.id, sent.toFloat() / item.fileSize.coerceAtLeast(1), sent, (sent / elapsed).toLong())
+                if (ack.binary) {
+                    // 二进制直传：跳过 Base64 与 JSON 序列化
+                    send(out, NetworkMessage.BinaryBegin(item.id))
+                    val buffer = ByteArray(1024 * 1024)
+                    while (true) {
+                        val n = fis.read(buffer)
+                        if (n <= 0) break
+                        out.write(buffer, 0, n)
+                        sent += n
+                        val now = System.currentTimeMillis()
+                        if (sent - lastBytes >= 1024 * 1024 || now - lastTime >= 300) reportSpeed(now)
+                    }
+                    out.flush()
+                } else {
+                    val buffer = ByteArray(TransferConfig.CHUNK_SIZE)
+                    while (true) {
+                        val n = fis.read(buffer)
+                        if (n <= 0) break
+                        send(out, NetworkMessage.FileChunk(
+                            transferId = item.id,
+                            offset = sent,
+                            data = Base64.encodeToString(buffer.copyOf(n), Base64.NO_WRAP),
+                            last = false,
+                        ))
+                        sent += n
+                        val now = System.currentTimeMillis()
+                        if (now - lastTime >= 200) reportSpeed(now)
+                    }
+                    send(out, NetworkMessage.FileChunk(item.id, sent, "", last = true))
+                    send(out, NetworkMessage.TransferFinished(item.id, true))
                 }
             }
-            send(out, NetworkMessage.FileChunk(item.id, sent, "", last = true))
-            send(out, NetworkMessage.TransferFinished(item.id, true))
 
+            store.updateProgress(item.id, 1f, item.fileSize, ema.toLong())
             store.updateStatus(item.id, TransferStatus.COMPLETED, endTime = System.currentTimeMillis())
             messages.updateByTransferId(item.id) { it.copy(status = MessageStatus.SENT) }
         } catch (e: Exception) {
             Log.e(TAG, "sendFile failed", e)
-            store.updateStatus(item.id, TransferStatus.FAILED, e.message, System.currentTimeMillis())
+            store.updateStatus(item.id, TransferStatus.FAILED, sendErrorMessage(e), System.currentTimeMillis())
             messages.updateByTransferId(item.id) { it.copy(status = MessageStatus.FAILED) }
         } finally {
             sessions.remove(item.id)
@@ -237,8 +272,10 @@ class TransferEngine private constructor(context: Context) {
     private suspend fun runSendText(device: Device, msgId: String, text: String) {
         val socket = Socket()
         try {
+            socket.tcpNoDelay = true
             socket.connect(InetSocketAddress(device.address, DiscoveryConfig.FILE_TRANSFER_PORT), TransferConfig.CONNECT_TIMEOUT_MS)
-            val out = DataOutputStream(socket.getOutputStream())
+            socket.soTimeout = TransferConfig.ACK_TIMEOUT_MS
+            val out = DataOutputStream(BufferedOutputStream(socket.getOutputStream(), 64 * 1024))
             val input = DataInputStream(socket.getInputStream())
             val txId = UUID.randomUUID().toString()
 
@@ -373,8 +410,10 @@ class TransferEngine private constructor(context: Context) {
     private suspend fun runReceiveFile(request: NetworkMessage.TransferRequest, socket: Socket) = withContext(Dispatchers.IO) {
         val id = request.transferId
         try {
-            val out = DataOutputStream(socket.getOutputStream())
-            val input = DataInputStream(socket.getInputStream())
+            socket.tcpNoDelay = true
+            try { socket.receiveBufferSize = 4 * 1024 * 1024 } catch (_: Exception) {}
+            val out = DataOutputStream(BufferedOutputStream(socket.getOutputStream(), 64 * 1024))
+            val input = DataInputStream(BufferedInputStream(socket.getInputStream(), 1024 * 1024))
 
             if (store.getTransfer(id) == null) {
                 store.addTransfer(TransferItem(
@@ -388,7 +427,6 @@ class TransferEngine private constructor(context: Context) {
                     deviceName = request.sender.name,
                 ))
             }
-            // 会话里出现文件气泡
             messages.add(
                 ChatMessage(
                     deviceId = request.sender.id,
@@ -403,46 +441,89 @@ class TransferEngine private constructor(context: Context) {
                 )
             )
 
-            send(out, NetworkMessage.TransferAck(id, true))
+            // 声明支持二进制直传；老发送端会忽略该字段继续走 Base64 分片
+            send(out, NetworkMessage.TransferAck(transferId = id, accepted = true, binary = true))
             store.updateStatus(id, TransferStatus.TRANSFERRING)
 
             val target = createTarget(request.fileName)
+            val output = BufferedOutputStream(target.opener(), 1024 * 1024)
             var written = 0L
-            val started = System.currentTimeMillis()
             var finished: NetworkMessage.TransferFinished? = null
+            var ok = true
 
-            val output = target.opener()
             try {
-                loop@ while (true) {
-                    val msg = read(input) ?: break
-                    when (msg) {
-                        is NetworkMessage.FileChunk -> {
-                            if (msg.last) break@loop
-                            val bytes = Base64.decode(msg.data, Base64.NO_WRAP)
-                            output.write(bytes)
-                            output.flush()
-                            written += bytes.size
-                            val elapsed = ((System.currentTimeMillis() - started) / 1000.0).coerceAtLeast(0.001)
-                            store.updateProgress(id, written.toFloat() / request.fileSize.coerceAtLeast(1), written, (written / elapsed).toLong())
+                val first = read(input)
+                if (first is NetworkMessage.BinaryBegin) {
+                    val buffer = ByteArray(1024 * 1024)
+                    var remaining = request.fileSize
+                    var lastTime = System.currentTimeMillis()
+                    var lastBytes = 0L
+                    var ema = 0.0
+                    while (remaining > 0) {
+                        val toRead = minOf(buffer.size.toLong(), remaining).toInt()
+                        val n = input.read(buffer, 0, toRead)
+                        if (n < 0) { ok = false; break }
+                        output.write(buffer, 0, n)
+                        written += n
+                        remaining -= n
+                        val now = System.currentTimeMillis()
+                        if (written - lastBytes >= 1024 * 1024 || now - lastTime >= 300) {
+                            val dt = (now - lastTime).coerceAtLeast(1)
+                            val inst = (written - lastBytes) * 1000.0 / dt
+                            ema = if (ema <= 0.0) inst else ema * 0.7 + inst * 0.3
+                            lastTime = now
+                            lastBytes = written
+                            store.updateProgress(id, written.toFloat() / request.fileSize.coerceAtLeast(1), written, ema.toLong())
                         }
-                        is NetworkMessage.TransferFinished -> { finished = msg; break@loop }
-                        is NetworkMessage.CancelTransfer -> throw IllegalStateException("Sender cancelled")
-                        else -> {}
+                    }
+                } else {
+                    var frame: NetworkMessage? = first
+                    var stop = false
+                    var lastTime = System.currentTimeMillis()
+                    var lastBytes = 0L
+                    var ema = 0.0
+                    while (frame != null && !stop) {
+                        when (frame) {
+                            is NetworkMessage.FileChunk -> {
+                                if (frame.last) { stop = true; break }
+                                val bytes = Base64.decode(frame.data, Base64.NO_WRAP)
+                                output.write(bytes)
+                                written += bytes.size
+                                val now = System.currentTimeMillis()
+                                if (now - lastTime >= 200) {
+                                    val dt = (now - lastTime).coerceAtLeast(1)
+                                    val inst = (written - lastBytes) * 1000.0 / dt
+                                    ema = if (ema <= 0.0) inst else ema * 0.7 + inst * 0.3
+                                    lastTime = now
+                                    lastBytes = written
+                                    store.updateProgress(id, written.toFloat() / request.fileSize.coerceAtLeast(1), written, ema.toLong())
+                                }
+                            }
+                            is NetworkMessage.TransferFinished -> { finished = frame; stop = true }
+                            is NetworkMessage.CancelTransfer -> throw IllegalStateException("Sender cancelled")
+                            else -> {}
+                        }
+                        if (!stop) frame = read(input)
                     }
                 }
             } finally {
+                runCatching { output.flush() }
                 runCatching { output.close() }
             }
 
-            if (finished?.success == true || written > 0) {
+            val success = ok && written >= request.fileSize && (finished?.success != false)
+            if (success) {
+                val location = target.location
                 store.updateStatus(id, TransferStatus.COMPLETED, endTime = System.currentTimeMillis())
-                store.updateTransfer(id) { it.copy(localPath = target.location) }
-                messages.updateByTransferId(id) {
-                    it.copy(status = MessageStatus.DELIVERED, localPath = target.location)
-                }
-                notifyMedia(target.location)
+                store.updateTransfer(id) { it.copy(localPath = location) }
+                messages.updateByTransferId(id) { it.copy(status = MessageStatus.DELIVERED, localPath = location) }
+                notifyMedia(location)
             } else {
-                store.updateStatus(id, TransferStatus.FAILED, finished?.message ?: "incomplete", System.currentTimeMillis())
+                // 清理中断产生的空文件/半成品
+                if (!target.location.startsWith("content://")) {
+                    runCatching { java.io.File(target.location).delete() }
+                }
+                store.updateStatus(id, TransferStatus.FAILED, finished?.message ?: "传输中断", System.currentTimeMillis())
                 messages.updateByTransferId(id) { it.copy(status = MessageStatus.FAILED) }
             }
         } catch (e: Exception) {
@@ -455,6 +536,11 @@ class TransferEngine private constructor(context: Context) {
     }
 
     // ---------------------------------------------------------------- 工具
+
+    private fun sendErrorMessage(e: Exception): String = when (e) {
+        is java.net.SocketTimeoutException -> "等待对方确认超时"
+        else -> e.message ?: "传输失败"
+    }
 
     private fun send(out: DataOutputStream, message: NetworkMessage) {
         val bytes = json.encodeToString(NetworkMessage.serializer(), message).toByteArray()

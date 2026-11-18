@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -99,7 +100,6 @@ fun HomeScreen(
     val devices by discovery.devices.collectAsStateWithLifecycle()
     val transfers by store.transfers.collectAsStateWithLifecycle()
     val allMessages by messageStore.messages.collectAsStateWithLifecycle()
-    val pending by engine.pendingRequests.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -134,6 +134,30 @@ fun HomeScreen(
             compareByDescending<ConversationEntry> { it.lastMessage?.timestamp ?: 0L }
                 .thenByDescending { it.online }
         )
+    }
+
+    // 对方重装/清数据后 deviceId 会变化：把同名旧会话合并到当前设备/最近会话
+    LaunchedEffect(devices, allMessages) {
+        if (allMessages.isEmpty()) return@LaunchedEffect
+        val grouped = allMessages.groupBy { it.deviceId }
+        val byName = grouped.entries.groupBy {
+            it.value.lastOrNull()?.deviceName?.trim().orEmpty()
+        }
+        for ((name, entries) in byName) {
+            if (name.isBlank() || entries.size <= 1) continue
+            val onlineIds = devices.filter { it.isOnline && it.name.trim() == name }.map { it.id }
+            val targetId = onlineIds.firstOrNull()
+                ?: entries.maxByOrNull { it.value.lastOrNull()?.timestamp ?: 0L }?.key
+                ?: continue
+            entries.forEach { entry ->
+                val oldId = entry.key
+                if (oldId == targetId) return@forEach
+                // 该旧 ID 仍在线上时不合并，避免把两台同名设备混在一起
+                if (devices.any { it.id == oldId && it.isOnline }) return@forEach
+                messageStore.migrateDevice(oldId, targetId, name)
+                store.migrateDevice(oldId, targetId, name)
+            }
+        }
     }
 
     Scaffold(
@@ -210,19 +234,6 @@ fun HomeScreen(
         }
     }
 
-    // 待确认的文件接收
-    if (pending.isNotEmpty()) {
-        val p = pending.first()
-        AlertDialog(
-            onDismissRequest = { engine.rejectPending(p.request.transferId) },
-            title = { Text("收到文件") },
-            text = {
-                Text("${p.request.sender.name} 想发送「${p.request.fileName}」（${p.request.fileSize / 1024}KB），是否接收？")
-            },
-            confirmButton = { TextButton(onClick = { engine.acceptPending(p.request.transferId) }) { Text("接收") } },
-            dismissButton = { TextButton(onClick = { engine.rejectPending(p.request.transferId) }) { Text("拒绝") } },
-        )
-    }
 }
 
 @Composable

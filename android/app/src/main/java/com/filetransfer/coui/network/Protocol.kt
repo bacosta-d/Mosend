@@ -41,7 +41,14 @@ sealed class NetworkMessage {
         val transferId: String,
         val accepted: Boolean,
         val message: String? = null,
+        /** 接收端是否支持二进制直传（无 Base64/JSON 开销） */
+        val binary: Boolean = false,
     ) : NetworkMessage()
+
+    /** 宣布接下来是原始字节流（长度 = fileSize），无 Base64/JSON 开销 */
+    @Serializable
+    @SerialName("binary_begin")
+    data class BinaryBegin(val transferId: String) : NetworkMessage()
 
     /** 一个文件分片（Base64 编码，兼容 JSON） */
     @Serializable
@@ -85,8 +92,9 @@ object DiscoveryConfig {
 }
 
 object TransferConfig {
-    const val CHUNK_SIZE = 64 * 1024          // 64 KiB
+    const val CHUNK_SIZE = 256 * 1024         // 256 KiB
     const val MAX_CONCURRENT = 3
     const val CONNECT_TIMEOUT_MS = 10_000
-    const val ACK_TIMEOUT_MS = 30_000
+    const val ACK_TIMEOUT_MS = 120_000        // 等待对方点“接收”的上限
+    const val TRANSFER_TIMEOUT_MS = 300_000   // 传输过程中单次读写超时
 }

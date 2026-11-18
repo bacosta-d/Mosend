@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const chunkSize = 64 * 1024
+const chunkSize = 256 * 1024
 
 var errRejected = errors.New("对方拒绝接收")
 
@@ -65,6 +65,11 @@ func (t *TransferServer) Start() error {
 
 func (t *TransferServer) handleIncoming(conn net.Conn) {
 	defer func() { _ = conn.Close() }()
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		_ = tcp.SetNoDelay(true)
+		_ = tcp.SetReadBuffer(4 * 1024 * 1024)
+		_ = tcp.SetWriteBuffer(256 * 1024)
+	}
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Minute))
 
 	frame, err := readFrame(conn)
@@ -99,7 +104,7 @@ func (t *TransferServer) handleIncoming(conn net.Conn) {
 		_ = writeFrame(conn, TransferAck{Type: msgTransferAck, TransferID: req.TransferID, Accepted: false, Message: strp("Declined")})
 		return
 	}
-	_ = writeFrame(conn, TransferAck{Type: msgTransferAck, TransferID: req.TransferID, Accepted: true})
+	_ = writeFrame(conn, TransferAck{Type: msgTransferAck, TransferID: req.TransferID, Accepted: true, Binary: true})
 
 	msg := &Message{
 		ID:         "t:" + req.TransferID,
@@ -123,44 +128,126 @@ func (t *TransferServer) handleIncoming(conn net.Conn) {
 		return
 	}
 	var written int64
-	bw := bufio.NewWriterSize(f, 256*1024)
-loop:
-	for {
-		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
-		fr, err := readFrame(conn)
-		if err != nil {
-			break
-		}
-		typ, _ := decodeType(fr)
-		switch typ {
-		case msgFileChunk:
-			var c FileChunk
-			if json.Unmarshal(fr, &c) != nil {
-				continue
+	ok := true
+	var finished *TransferFinished
+	bw := bufio.NewWriterSize(f, 1024*1024)
+
+	// 读取第一帧判断是否为二进制直传
+	first, ferr := readFrame(conn)
+	if ferr != nil {
+		ok = false
+	} else {
+		ftype, _ := decodeType(first)
+		if ftype == msgBinaryBegin {
+			buf := make([]byte, 1024*1024)
+			remaining := req.FileSize
+			lastT := time.Now()
+			lastB := int64(0)
+			ema := 0.0
+			for remaining > 0 {
+				toRead := int64(len(buf))
+				if remaining < toRead {
+					toRead = remaining
+				}
+				_ = conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
+				n, rerr := conn.Read(buf[:toRead])
+				if n > 0 {
+					if _, werr := bw.Write(buf[:n]); werr != nil {
+						ok = false
+						break
+					}
+					written += int64(n)
+					remaining -= int64(n)
+					now := time.Now()
+					if written-lastB >= 1024*1024 || now.Sub(lastT) >= 300*time.Millisecond {
+						inst := float64(written-lastB) / now.Sub(lastT).Seconds()
+						if ema <= 0 {
+							ema = inst
+						} else {
+							ema = ema*0.7 + inst*0.3
+						}
+						lastT = now
+						lastB = written
+						pct := 0
+						if req.FileSize > 0 {
+							pct = int(written * 100 / req.FileSize)
+						}
+						t.store.UpdateProgress(msg.ID, pct)
+					}
+				}
+				if rerr != nil {
+					if remaining > 0 {
+						ok = false
+					}
+					break
+				}
 			}
-			if c.Last {
-				break loop
+		} else {
+			frame := first
+			stop := false
+			lastT := time.Now()
+			lastB := int64(0)
+			ema := 0.0
+			for frame != nil && !stop {
+				ftype, _ := decodeType(frame)
+				switch ftype {
+				case msgFileChunk:
+					var c FileChunk
+					if json.Unmarshal(frame, &c) == nil {
+						if c.Last {
+							stop = true
+							break
+						}
+						data, derr := base64.StdEncoding.DecodeString(c.Data)
+						if derr == nil {
+							if _, werr := bw.Write(data); werr != nil {
+								ok = false
+								stop = true
+								break
+							}
+							written += int64(len(data))
+							now := time.Now()
+							if now.Sub(lastT) >= 200*time.Millisecond {
+								inst := float64(written-lastB) / now.Sub(lastT).Seconds()
+								if ema <= 0 {
+									ema = inst
+								} else {
+									ema = ema*0.7 + inst*0.3
+								}
+								lastT = now
+								lastB = written
+								pct := 0
+								if req.FileSize > 0 {
+									pct = int(written * 100 / req.FileSize)
+								}
+								t.store.UpdateProgress(msg.ID, pct)
+							}
+						}
+					}
+				case msgTransferFinished:
+					var fin TransferFinished
+					if json.Unmarshal(frame, &fin) == nil {
+						finished = &fin
+					}
+					stop = true
+				case msgCancelTransfer:
+					ok = false
+					stop = true
+				}
+				if !stop {
+					frame, ferr = readFrame(conn)
+					if ferr != nil {
+						frame = nil
+					}
+				}
 			}
-			data, err := base64.StdEncoding.DecodeString(c.Data)
-			if err != nil {
-				continue
-			}
-			if _, err := bw.Write(data); err != nil {
-				break loop
-			}
-			written += int64(len(data))
-			pct := 0
-			if req.FileSize > 0 {
-				pct = int(written * 100 / req.FileSize)
-			}
-			t.store.UpdateProgress(msg.ID, pct)
-		case msgTransferFinished:
-			break loop
 		}
 	}
+
 	_ = bw.Flush()
 	_ = f.Close()
-	if written > 0 {
+	success := ok && written >= req.FileSize && (finished == nil || finished.Success)
+	if success {
 		_ = os.Rename(part, path)
 		t.store.UpdateMessage(msg.ID, func(m *Message) {
 			m.Status = "delivered"
@@ -315,6 +402,11 @@ func (t *TransferServer) sendFileQueued(device *Device, m Message) error {
 		return err
 	}
 	defer conn.Close()
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		_ = tcp.SetNoDelay(true)
+		_ = tcp.SetWriteBuffer(4 * 1024 * 1024)
+		_ = tcp.SetReadBuffer(256 * 1024)
+	}
 
 	t.store.UpdateMessage(m.ID, func(x *Message) { x.Status = "sending" })
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
@@ -348,37 +440,89 @@ func (t *TransferServer) sendFileQueued(device *Device, m Message) error {
 	}
 	defer f.Close()
 
-	buf := make([]byte, chunkSize)
 	var sent int64
-	for {
-		n, rerr := f.Read(buf)
-		if n > 0 {
-			if err := writeFrame(conn, FileChunk{
-				Type:       msgFileChunk,
-				TransferID: req.TransferID,
-				Offset:     sent,
-				Data:       base64.StdEncoding.EncodeToString(buf[:n]),
-			}); err != nil {
-				t.requeue(m.ID)
-				return err
-			}
-			sent += int64(n)
-			pct := 0
-			if st.Size() > 0 {
-				pct = int(sent * 100 / st.Size())
-			}
-			t.store.UpdateProgress(m.ID, pct)
+	lastT := time.Now()
+	lastB := int64(0)
+	ema := 0.0
+	report := func(now time.Time) {
+		dt := now.Sub(lastT).Seconds()
+		if dt <= 0 {
+			return
 		}
-		if rerr == io.EOF {
-			break
+		inst := float64(sent-lastB) / dt
+		if ema <= 0 {
+			ema = inst
+		} else {
+			ema = ema*0.7 + inst*0.3
 		}
-		if rerr != nil {
-			t.requeue(m.ID)
-			return rerr
+		lastT = now
+		lastB = sent
+		pct := 0
+		if st.Size() > 0 {
+			pct = int(sent * 100 / st.Size())
 		}
+		t.store.UpdateProgress(m.ID, pct)
 	}
-	_ = writeFrame(conn, FileChunk{Type: msgFileChunk, TransferID: req.TransferID, Offset: sent, Last: true})
-	_ = writeFrame(conn, TransferFinished{Type: msgTransferFinished, TransferID: req.TransferID, Success: true})
+
+	if ack.Binary {
+		if err := writeFrame(conn, BinaryBegin{Type: msgBinaryBegin, TransferID: req.TransferID}); err != nil {
+			t.requeue(m.ID)
+			return err
+		}
+		buf := make([]byte, 1024*1024)
+		for {
+			n, rerr := f.Read(buf)
+			if n > 0 {
+				if _, werr := conn.Write(buf[:n]); werr != nil {
+					t.requeue(m.ID)
+					return werr
+				}
+				sent += int64(n)
+				now := time.Now()
+				if sent-lastB >= 1024*1024 || now.Sub(lastT) >= 300*time.Millisecond {
+					report(now)
+				}
+			}
+			if rerr == io.EOF {
+				break
+			}
+			if rerr != nil {
+				t.requeue(m.ID)
+				return rerr
+			}
+		}
+	} else {
+		buf := make([]byte, chunkSize)
+		for {
+			n, rerr := f.Read(buf)
+			if n > 0 {
+				if err := writeFrame(conn, FileChunk{
+					Type:       msgFileChunk,
+					TransferID: req.TransferID,
+					Offset:     sent,
+					Data:       base64.StdEncoding.EncodeToString(buf[:n]),
+				}); err != nil {
+					t.requeue(m.ID)
+					return err
+				}
+				sent += int64(n)
+				now := time.Now()
+				if now.Sub(lastT) >= 200*time.Millisecond {
+					report(now)
+				}
+			}
+			if rerr == io.EOF {
+				break
+			}
+			if rerr != nil {
+				t.requeue(m.ID)
+				return rerr
+			}
+		}
+		_ = writeFrame(conn, FileChunk{Type: msgFileChunk, TransferID: req.TransferID, Offset: sent, Last: true})
+		_ = writeFrame(conn, TransferFinished{Type: msgTransferFinished, TransferID: req.TransferID, Success: true})
+	}
+
 	t.store.UpdateMessage(m.ID, func(x *Message) {
 		x.Status = "sent"
 		x.Progress = 100
@@ -398,7 +542,14 @@ func (t *TransferServer) dial(device *Device) (net.Conn, error) {
 		return nil, fmt.Errorf("设备离线")
 	}
 	addr := net.JoinHostPort(device.Address, fmt.Sprint(t.port))
-	return net.DialTimeout("tcp4", addr, 10*time.Second)
+	conn, err := net.DialTimeout("tcp4", addr, 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		_ = tcp.SetNoDelay(true)
+	}
+	return conn, nil
 }
 
 func (t *TransferServer) readAck(conn net.Conn) (*TransferAck, error) {

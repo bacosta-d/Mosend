@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -135,8 +136,49 @@ func (s *Store) UpsertDevice(info DeviceInfo, ip string) {
 	hook := s.onOnline
 	s.mu.Unlock()
 
+	// 对方重装/清数据会换 ID：把同名离线旧会话合并到当前设备
+	s.MergeByName(info.ID, info.Name)
+
 	if hook != nil && (!wasOnline || !ok) {
 		go hook(info.ID)
+	}
+}
+
+// MergeByName 将同名且当前离线的旧会话迁移到 newID。
+func (s *Store) MergeByName(newID, name string) {
+	trimmed := strings.TrimSpace(name)
+	if newID == "" || trimmed == "" {
+		return
+	}
+	s.mu.Lock()
+	var moved int
+	now := time.Now()
+	for oldID, list := range s.messages {
+		if oldID == newID || len(list) == 0 {
+			continue
+		}
+		if d, ok := s.devices[oldID]; ok && now.Sub(time.UnixMilli(d.LastSeen)) < 20*time.Second {
+			continue
+		}
+		if strings.TrimSpace(list[len(list)-1].DeviceName) != trimmed {
+			continue
+		}
+		for _, m := range list {
+			m.DeviceID = newID
+			m.DeviceName = name
+		}
+		s.messages[newID] = append(s.messages[newID], list...)
+		delete(s.messages, oldID)
+		moved += len(list)
+	}
+	if moved > 0 {
+		sort.SliceStable(s.messages[newID], func(i, j int) bool {
+			return s.messages[newID][i].TS < s.messages[newID][j].TS
+		})
+	}
+	s.mu.Unlock()
+	if moved > 0 {
+		s.Save()
 	}
 }
 

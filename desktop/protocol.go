@@ -16,6 +16,8 @@ const (
 	msgFileChunk        = "file_chunk"
 	msgTextMessage      = "text_message"
 	msgTransferFinished = "transfer_finished"
+	msgBinaryBegin      = "binary_begin"
+	msgCancelTransfer   = "cancel_transfer"
 )
 
 type DeviceInfo struct {
@@ -53,6 +55,12 @@ type TransferAck struct {
 	TransferID string  `json:"transferId"`
 	Accepted   bool    `json:"accepted"`
 	Message    *string `json:"message"`
+	Binary     bool    `json:"binary"`
+}
+
+type BinaryBegin struct {
+	Type       string `json:"type"`
+	TransferID string `json:"transferId"`
 }
 
 type FileChunk struct {

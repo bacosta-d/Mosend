@@ -71,14 +71,28 @@ class TransferStore private constructor(context: Context) {
         }
     }
 
+    /** 高频进度更新：只改内存，不落盘（状态变化时再持久化）。 */
     fun updateProgress(id: String, progress: Float, bytesTransferred: Long, speedBps: Long) {
-        updateTransfer(id) {
-            it.copy(
-                progress = progress.coerceIn(0f, 1f),
-                bytesTransferred = bytesTransferred,
-                speedBps = speedBps,
-            )
+        _transfers.update { list ->
+            list.map {
+                if (it.id == id) it.copy(
+                    progress = progress.coerceIn(0f, 1f),
+                    bytesTransferred = bytesTransferred,
+                    speedBps = speedBps,
+                ) else it
+            }
         }
+    }
+
+    /** 传输记录跟随设备 ID 变化迁移。 */
+    fun migrateDevice(fromId: String, toId: String, toName: String) {
+        if (fromId == toId) return
+        _transfers.update { list ->
+            list.map {
+                if (it.deviceId == fromId) it.copy(deviceId = toId, deviceName = toName) else it
+            }
+        }
+        persistAsync()
     }
 
     fun getTransfer(id: String): TransferItem? = _transfers.value.firstOrNull { it.id == id }

@@ -20,8 +20,8 @@ android {
         applicationId = "com.filetransfer.coui"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.2.3"
         vectorDrawables.useSupportLibrary = true
     }
 
