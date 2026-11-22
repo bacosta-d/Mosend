@@ -111,14 +111,6 @@ fun GlassBackground(modifier: Modifier = Modifier, backdrop: LayerBackdrop) {
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f),
             )
         }
-        Text(
-            text = "MOSEND",
-            style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Black),
-            color = if (dark) Color.White.copy(alpha = 0.035f) else Color(0xFF1A3A80).copy(alpha = 0.06f),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 72.dp),
-        )
     }
 }
 

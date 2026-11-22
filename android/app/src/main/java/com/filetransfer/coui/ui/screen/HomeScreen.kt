@@ -105,7 +105,6 @@ fun HomeScreen(
     val allMessages by messageStore.messages.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var menuOpen by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -175,17 +174,8 @@ fun HomeScreen(
                     IconButton(onClick = { discovery.refresh() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "刷新")
                     }
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "更多")
-                        }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("设置") },
-                                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                                onClick = { menuOpen = false; onSettingsClick() },
-                            )
-                        }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "设置")
                     }
                 },
             )
