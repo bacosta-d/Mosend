@@ -106,6 +106,9 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.NEARBY_WIFI_DEVICES)
             }
+            if (Build.VERSION.SDK_INT >= 37) {
+                add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
