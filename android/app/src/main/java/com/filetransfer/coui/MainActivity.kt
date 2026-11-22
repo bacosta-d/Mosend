@@ -1,19 +1,29 @@
 package com.filetransfer.coui
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.filetransfer.coui.ui.components.PendingTransferHost
+import com.filetransfer.coui.ui.glass.GlassBackground
+import com.filetransfer.coui.ui.glass.LocalGlassBackdrop
+import com.filetransfer.coui.ui.glass.rememberMosendBackdrop
 import com.filetransfer.coui.ui.navigation.AppNavHost
 import com.filetransfer.coui.ui.navigation.rememberAppNavController
 import com.filetransfer.coui.ui.theme.FileTransferTheme
@@ -34,11 +44,30 @@ class MainActivity : ComponentActivity() {
         setContent {
             FileTransferTheme {
                 MaterialTheme {
-                    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                        val navController = rememberAppNavController()
-                        Box(Modifier.fillMaxSize()) {
-                            AppNavHost(navController)
-                            PendingTransferHost()
+                    val dark = isSystemInDarkTheme()
+                    val view = LocalView.current
+                    SideEffect {
+                        val window = (view.context as? Activity)?.window ?: return@SideEffect
+                        WindowCompat.getInsetsController(window, view).apply {
+                            isAppearanceLightStatusBars = !dark
+                            isAppearanceLightNavigationBars = !dark
+                        }
+                    }
+                    val backdrop = rememberMosendBackdrop()
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        GlassBackground(modifier = Modifier.fillMaxSize(), backdrop = backdrop)
+                        CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.onBackground,
+                            ) {
+                                val navController = rememberAppNavController()
+                                Box(Modifier.fillMaxSize()) {
+                                    AppNavHost(navController)
+                                    PendingTransferHost()
+                                }
+                            }
                         }
                     }
                 }

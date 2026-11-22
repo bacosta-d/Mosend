@@ -1,25 +1,17 @@
 pluginManagement {
     repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    resolutionStrategy {
-        eachPlugin {
-            if (requested.id.namespace == "androidx.compose.compiler") {
-                useModule("androidx.compose:compose-compiler:1.5.11")
-            }
-        }
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/gradle-plugin")
+        maven("https://maven.aliyun.com/repository/public")
+        google(); mavenCentral(); gradlePluginPortal()
     }
 }
-
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
-        mavenCentral()
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/public")
+        google(); mavenCentral()
     }
 }
-
-rootProject.name = "FileTransfer"
+rootProject.name = "Mosend"
 include(":app")

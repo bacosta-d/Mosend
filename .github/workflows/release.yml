@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Install Android SDK packages
         run: |
@@ -34,7 +34,7 @@ jobs:
           fi
           echo "sdkmanager: $SDKM"
           yes | "$SDKM" --licenses >/dev/null 2>&1 || true
-          yes | "$SDKM" "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1 || true
+          yes | "$SDKM" "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" >/dev/null 2>&1 || true
           "$SDKM" --list_installed | head -20 || true
 
       - name: Cache Gradle

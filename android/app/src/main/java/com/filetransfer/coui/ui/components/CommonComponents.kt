@@ -45,6 +45,7 @@ import com.filetransfer.coui.model.DeviceType
 import com.filetransfer.coui.model.TransferDirection
 import com.filetransfer.coui.model.TransferItem
 import com.filetransfer.coui.model.TransferStatus
+import com.filetransfer.coui.ui.glass.glassLite
 import com.filetransfer.coui.ui.theme.AppShapes
 import com.filetransfer.coui.ui.theme.AppTypography
 import java.text.SimpleDateFormat
@@ -56,9 +57,9 @@ import java.util.Locale
 @Composable
 fun SummaryBar(deviceCount: Int, activeCount: Int, modifier: Modifier = Modifier) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().glassLite(24.dp),
         shape = AppShapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
@@ -170,10 +171,10 @@ fun TransferTile(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().glassLite(24.dp),
         shape = AppShapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

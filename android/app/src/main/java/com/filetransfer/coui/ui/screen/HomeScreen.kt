@@ -70,6 +70,9 @@ import com.filetransfer.coui.ui.components.DeviceTile
 import com.filetransfer.coui.ui.components.EmptyHint
 import com.filetransfer.coui.ui.components.SummaryBar
 import com.filetransfer.coui.ui.components.TransferTile
+import com.filetransfer.coui.ui.glass.GlassSegmentedTabs
+import com.filetransfer.coui.ui.glass.glassLite
+import com.filetransfer.coui.ui.glass.GlassTopBar
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -162,19 +165,12 @@ fun HomeScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Mosend", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "${devices.count { it.isOnline }} 台设备在线",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
+            GlassTopBar(
+                title = "Mosend",
+                subtitle = "${devices.count { it.isOnline }} 台设备在线",
                 actions = {
                     IconButton(onClick = { discovery.refresh() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "刷新")
@@ -192,7 +188,6 @@ fun HomeScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
     ) { padding ->
@@ -201,20 +196,12 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = { Text("会话") },
-                    icon = { Icon(Icons.Filled.ChatBubbleOutline, contentDescription = null) },
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { Text("传输") },
-                    icon = { Icon(Icons.Filled.History, contentDescription = null) },
-                )
-            }
+            GlassSegmentedTabs(
+                options = listOf("会话", "传输"),
+                selected = selectedTab,
+                onSelect = { selectedTab = it },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
             if (selectedTab == 0) {
                 ConversationsTab(
@@ -267,10 +254,10 @@ private fun ConversationsTab(
 @Composable
 private fun ConversationRow(entry: ConversationEntry, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().glassLite(24.dp).clickable(onClick = onClick),
         shape = com.filetransfer.coui.ui.theme.AppShapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),

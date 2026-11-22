@@ -39,11 +39,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.filetransfer.coui.settings.SettingsStore
 import com.filetransfer.coui.transfer.TransferStore
+import com.filetransfer.coui.ui.glass.GlassDialog
+import com.filetransfer.coui.ui.glass.GlassTopBar
+import com.filetransfer.coui.ui.glass.glassLite
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,16 +83,16 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text("设置") },
-                navigationIcon = {
+            GlassTopBar(
+                title = "设置",
+                navigation = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
     ) { padding ->
@@ -166,10 +170,16 @@ fun SettingsScreen(
 
     if (showNameDialog) {
         var input by remember { mutableStateOf(deviceName) }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { showNameDialog = false },
-            title = { Text("修改设备名称") },
-            text = {
+            title = "修改设备名称",
+            dismissText = "取消",
+            confirmText = "保存",
+            onConfirm = {
+                settings.updateDeviceName(input)
+                showNameDialog = false
+            },
+            content = {
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -177,13 +187,6 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    settings.updateDeviceName(input)
-                    showNameDialog = false
-                }) { Text("保存") }
-            },
-            dismissButton = { TextButton(onClick = { showNameDialog = false }) { Text("取消") } },
         )
     }
 }
@@ -226,9 +229,9 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun SettingCard(content: @Composable () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth().glassLite(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(vertical = 4.dp)) { content() }
     }

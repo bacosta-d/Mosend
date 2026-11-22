@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -79,6 +80,13 @@ import com.filetransfer.coui.transfer.FileUtils
 import com.filetransfer.coui.transfer.MessageStore
 import com.filetransfer.coui.transfer.TransferEngine
 import com.filetransfer.coui.transfer.TransferStore
+import com.filetransfer.coui.ui.glass.GlassCard
+import com.filetransfer.coui.ui.glass.GlassDialog
+import com.filetransfer.coui.ui.glass.GlassTopBar
+import com.filetransfer.coui.ui.glass.glassBorder
+import com.filetransfer.coui.ui.glass.glassIncomingBubble
+import com.filetransfer.coui.ui.glass.glassLite
+import com.filetransfer.coui.ui.glass.glassOutgoingBrush
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -169,25 +177,17 @@ fun ChatScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(displayName, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            if (online) "在线" else "离线",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (online) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                navigationIcon = {
+            GlassTopBar(
+                title = displayName,
+                subtitle = if (online) "在线" else "离线",
+                navigation = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
         bottomBar = {
@@ -209,19 +209,19 @@ fun ChatScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.background),
+                .padding(padding),
         ) {
             if (!online) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glassLite(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Text(
                         "对方当前离线，消息无法发送",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                     )
                 }
             }
@@ -270,18 +270,22 @@ fun ChatScreen(
     }
 
     deleteTarget?.let { target ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("删除消息") },
-            text = { Text("只删除聊天记录，不会删除已接收的文件。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    messageStore.remove(target.id)
-                    target.transferId?.let { transferStore.remove(it) }
-                    deleteTarget = null
-                }) { Text("删除") }
+            title = "删除消息",
+            dismissText = "取消",
+            confirmText = "删除",
+            onConfirm = {
+                messageStore.remove(target.id)
+                target.transferId?.let { transferStore.remove(it) }
+                deleteTarget = null
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
+            content = {
+                Text(
+                    "只删除聊天记录，不会删除已接收的文件。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
         )
     }
 }
@@ -294,13 +298,21 @@ private fun ChatInputBar(
     onSend: () -> Unit,
     onAttach: () -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        corner = 26.dp,
+        blurRadius = 10.dp,
+        refractionHeight = 12.dp,
+        refractionAmount = 22.dp,
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .imePadding(),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -314,6 +326,14 @@ private fun ChatInputBar(
                 modifier = Modifier.weight(1f),
                 maxLines = 4,
                 enabled = enabled,
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedBorderColor = glassBorder(),
+                    unfocusedBorderColor = glassBorder(),
+                    disabledBorderColor = glassBorder().copy(alpha = 0.4f),
+                ),
             )
             IconButton(
                 onClick = onSend,
@@ -336,8 +356,8 @@ private fun MessageBubble(
     onOpenFile: (String?, String?) -> Unit,
 ) {
     val isOut = message.direction == MessageDirection.OUT
-    val bubbleColor = if (isOut) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (isOut) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val bubbleColor = if (isOut) Color.Transparent else glassIncomingBubble()
+    val textColor = if (isOut) Color.White else MaterialTheme.colorScheme.onSurface
     val alignment = if (isOut) Alignment.CenterEnd else Alignment.CenterStart
     val shape = if (isOut) {
         RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
@@ -357,7 +377,13 @@ private fun MessageBubble(
             ),
         contentAlignment = alignment,
     ) {
-        Surface(color = bubbleColor, shape = shape, tonalElevation = 0.dp) {
+        Surface(
+            color = bubbleColor,
+            shape = shape,
+            tonalElevation = 0.dp,
+            border = BorderStroke(1.dp, glassBorder()),
+            modifier = if (isOut) Modifier.background(glassOutgoingBrush(), shape) else Modifier,
+        ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).widthIn(max = 280.dp)) {
                 when (message.kind) {
                     MessageKind.TEXT -> {
